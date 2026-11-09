@@ -13,7 +13,15 @@ from pydantic import BaseModel, Field
 from .config import settings
 from .store import append_event, read_events, read_state, write_state, now_iso
 
-app = FastAPI(title="ORCHESTRA Local Controller", version="0.2.0")
+app = FastAPI(title="ORCHESTRA Local Controller", version="0.3.0")
+
+from .api import router as orchestration_router
+from .runtime import recover_interrupted
+app.include_router(orchestration_router)
+
+@app.on_event("startup")
+async def recover_after_restart() -> None:
+    recover_interrupted()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],

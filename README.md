@@ -1,48 +1,64 @@
 # ORCHESTRA
 
-A local-first AI engineering command center for coordinating Claude Code agents on macOS.
+Local-first AI engineering command center for coordinating Claude Code agents on macOS.
 
-> **Status:** Phase 4 — foundation scaffold. The dashboard and API foundation are being built; Claude Code process orchestration, persistent agent execution, live terminal streaming, and recovery are not yet implemented.
+## Current implementation
 
-## Product direction
+The dashboard, local controller, approval queue, Claude CLI launch adapter, Git worktree isolation, terminal event capture, project brain snapshot, restart recovery marking and five-reviewer QA workflow are implemented. Run the automated checks before relying on it for production work.
 
-ORCHESTRA uses a Supervisor (AI CTO) to inspect a project, prepare a plan, request approval, coordinate named agents, and verify work. The user remains the final authority for scope changes, sensitive actions, merges, and releases.
+Important limitations: Supervisor planning currently creates a structured deterministic proposal from repository context; it is not an autonomous LLM CTO. QA creates five independent review slots and does not fabricate reviewer results. A reviewer must submit evidence. Controller restart marks prior running tasks interrupted; it does not silently resume stale Claude sessions.
 
-## Architecture
+## Requirements
 
-- **Frontend:** Next.js, TypeScript, Tailwind CSS
-- **Backend:** Python, FastAPI, asyncio
-- **Live updates:** WebSockets
-- **Execution workers:** Claude Code CLI (integration pending)
-- **Persistence:** JSON state and JSONL event history; no SQL database
-- **Source control:** Git with isolated worktrees and protected main-branch workflow
-- **Runtime:** Localhost-first macOS controller
+- macOS or Linux
+- Python 3.10+
+- Node.js 20+ and npm
+- Git
+- Claude Code CLI installed and authenticated (`claude` works in Terminal)
 
-## Design
+## Quick start
 
-Dark cinematic command center with an immersive overview and clean engineering workspaces. Agents have persistent human-style names and explicit roles; multiple agents may share a role.
-
-## Development principles
-
-1. The controller owns orchestration and project state; Claude Code sessions are execution workers.
-2. Plans are approved before execution.
-3. Progress is distinguished as agent-reported or independently verified.
-4. Risky, destructive, out-of-scope, and release actions require approval.
-5. Recovery is bounded and evidence-based; no infinite retries.
-6. Dashboard monitoring should not consume model-inference tokens.
-
-## Repository layout
-
-```
-frontend/   Next.js dashboard
-backend/    FastAPI local controller
-docs/       Architecture and implementation notes
+```bash
+git clone https://github.com/sikkaaryan/orchestra.git
+cd orchestra
+python3 setup.py --check
+python3 setup.py
 ```
 
-## Current foundation
+The setup script creates a virtual environment, installs dependencies, creates a local .env, and starts the dashboard at http://127.0.0.1:3000 and API docs at http://127.0.0.1:8787/docs. Press Ctrl+C to stop both services. Data is stored under backend/data/ and is ignored by Git.
 
-The initial scaffold establishes the visual dashboard, illustrative agent/activity data, basic FastAPI state and agent endpoints, a WebSocket endpoint, and JSON/JSONL persistence. Demo agent activity is illustrative only; it does not represent live Claude Code processes.
+## First use
 
-## Local development
+1. Connect a local Git repository from the dashboard.
+2. Register agents with unique names. Roles may be shared.
+3. Create a task and assign an idle agent.
+4. Approve the task in the approval queue.
+5. Launch with POST /api/v1/tasks/{task_id}/launch.
+6. Inspect output at GET /api/v1/tasks/{task_id}/terminal.
+7. Stop with POST /api/v1/tasks/{task_id}/stop.
 
-See the frontend and backend directories for their respective setup instructions. Claude Code integration and end-to-end runtime validation are upcoming implementation tasks.
+The CLI adapter uses the configured Claude Code permission mode and does not pass permission-bypass flags. Claude may request interactive permissions; unattended execution requires an explicitly configured and reviewed permission policy. Workers execute in dedicated Git worktrees under .orchestra/worktrees/. They do not merge, push or release.
+
+## API routes
+
+- GET /health and GET /api/v1/system/runtime
+- GET /api/v1/state and GET /api/v1/brain
+- POST /api/v1/supervisor/plan
+- POST /api/v1/tasks, POST /api/v1/tasks/{id}/launch, POST /api/v1/tasks/{id}/stop
+- GET /api/v1/tasks/{id}/terminal
+- POST /api/v1/qa/tasks/{id}/debate and POST /api/v1/qa/{qa_id}/review
+
+## Safety and recovery
+
+Execution is approval-gated by default. Worktree isolation requires a Git repository. Concurrency and timeout settings are configurable. On restart, previously running tasks become interrupted; reconcile their worktree and Git state before relaunching. Never configure permission bypass for convenience. No automatic merge, push, release or destructive operation is performed.
+
+## Tests
+
+```bash
+cd backend
+../.venv/bin/python -m pytest -q
+cd ../frontend
+npm run build
+```
+
+The current UI exposes project connection, agent registration, task creation, approvals and activity. Terminal, Supervisor planning and QA reviewer workspaces are API-backed and remain to be integrated into the UI.
