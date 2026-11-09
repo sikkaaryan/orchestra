@@ -1,6 +1,4 @@
-from pathlib import Path
-import os
-import tempfile
+from types import SimpleNamespace
 
 from orchestra_api.runtime import AgentRuntime
 
@@ -17,6 +15,6 @@ def test_prompt_contains_scope_and_no_permission_bypass():
 
 
 def test_terminal_reader_handles_missing_file(tmp_path, monkeypatch):
-    from orchestra_api import runtime as runtime_module
-    monkeypatch.setattr(runtime_module.settings, "data_dir", tmp_path, raising=False)
+    import orchestra_api.runtime as runtime_module
+    monkeypatch.setattr(runtime_module, "settings", SimpleNamespace(data_dir=tmp_path))
     assert AgentRuntime().terminal("unknown") == []
