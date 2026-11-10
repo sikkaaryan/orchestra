@@ -16,5 +16,9 @@ def test_prompt_contains_scope_and_no_permission_bypass():
 
 def test_terminal_reader_handles_missing_file(tmp_path, monkeypatch):
     import orchestra_api.runtime as runtime_module
-    monkeypatch.setattr(runtime_module, "settings", SimpleNamespace(data_dir=tmp_path))
+    monkeypatch.setattr(
+        runtime_module,
+        "settings",
+        SimpleNamespace(data_dir=tmp_path, max_concurrent_agents=4),
+    )
     assert AgentRuntime().terminal("unknown") == []
