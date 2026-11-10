@@ -42,6 +42,33 @@ export default function Home() {
   },[]);
   useEffect(() => { void refresh(); const timer=setInterval(()=>void refresh(),3000); return ()=>clearInterval(timer); },[refresh]);
 
+  // The controller broadcasts task-scoped terminal records over its local WebSocket.
+  // Polling remains as a reconnect/fallback path for state and historical output.
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const connect = () => {
+      if (stopped) return;
+      socket = new WebSocket(API.replace(/^http/, 'ws') + '/ws');
+      socket.onmessage = (message) => {
+        try {
+          const event = JSON.parse(message.data);
+          if (event.type === 'terminal.output' && event.task_id && event.record) {
+            setTerminal((current: any) => current?.id === event.task_id
+              ? { ...current, lines: [...current.lines, event.record].slice(-1000) }
+              : current);
+          }
+          if (event.type === 'connected') setOnline(true);
+        } catch { /* Ignore malformed or unrelated controller messages. */ }
+      };
+      socket.onclose = () => { if (!stopped) retry = setTimeout(connect, 1500); };
+      socket.onerror = () => socket?.close();
+    };
+    connect();
+    return () => { stopped = true; if (retry) clearTimeout(retry); socket?.close(); };
+  }, []);
+
   async function request(path:string,method='POST',body?:unknown) {
     setBusy(true); setError('');
     try {

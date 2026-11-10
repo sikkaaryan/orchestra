@@ -76,7 +76,7 @@ class AgentRuntime:
             raise ValueError("Assign an idle agent with the required role before launching")
         worktree = self._create_worktree(Path(project["path"]), task_id)
         prompt = self._prompt(task, agent, project)
-        args = [cli, "-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", settings.permission_mode]
+        args = [cli, "-p", prompt, "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", settings.permission_mode]
         if settings.claude_model:
             args += ["--model", settings.claude_model]
         process = await asyncio.create_subprocess_exec(
@@ -138,6 +138,13 @@ class AgentRuntime:
                     with output_file.open("a", encoding="utf-8") as handle:
                         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 _emit("agent.output", raw[:500], {"task_id": task_id})
+                # Forward process output to connected dashboard clients immediately.
+                try:
+                    from .main import manager
+                    await manager.broadcast({"type": "terminal.output", "task_id": task_id, "record": record})
+                except Exception:
+                    # Terminal persistence must continue even if a dashboard socket disconnects.
+                    pass
             code = await process.wait()
             state = _state()
             task = next((t for t in state["tasks"] if t["id"] == task_id), None)
