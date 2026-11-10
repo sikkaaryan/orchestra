@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .config import settings
+from .config import settings, resolve_claude_cli
 from .store import append_event, read_state, write_state, now_iso
 
 ROOT_MARKERS = {".git", "package.json", "pyproject.toml", "Cargo.toml", "game.project", "project.godot"}
@@ -39,9 +39,9 @@ class AgentRuntime:
         self.semaphore = asyncio.Semaphore(settings.max_concurrent_agents)
 
     def capabilities(self) -> dict[str, Any]:
-        cli = shutil.which(settings.claude_cli_path)
+        cli = resolve_claude_cli(settings.claude_cli_path)
         return {
-            "claude_cli": {"available": bool(cli), "path": cli},
+            "claude_cli": {"available": bool(cli), "path": cli, "status": "detected" if cli else "not_found"},
             "max_concurrent_agents": settings.max_concurrent_agents,
             "running_processes": len(self.processes),
             "permission_mode": settings.permission_mode,
@@ -68,7 +68,7 @@ class AgentRuntime:
             raise ValueError("Connect a valid local project before launching agents")
         cli = shutil.which(settings.claude_cli_path)
         if not cli:
-            raise RuntimeError("Claude Code CLI was not found on PATH. Set CLAUDE_CLI_PATH if installed elsewhere.")
+            raise RuntimeError("Claude Code CLI was not found. Install Claude Code or set CLAUDE_CLI_PATH in .env to its executable path, then restart ORCHESTRA.")
         agent = next((a for a in state["agents"] if a["id"] == task.get("agent_id")), None)
         if not agent:
             agent = next((a for a in state["agents"] if a["role"].casefold() == task["role"].casefold() and a.get("status") == "idle"), None)

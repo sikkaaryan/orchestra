@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,28 @@ def _bool(name: str, default: bool) -> bool:
 def _path(name: str) -> Path | None:
     value = os.getenv(name, "").strip()
     return Path(value).expanduser().resolve() if value else None
+
+
+def resolve_claude_cli(configured: str | None = None) -> str | None:
+    """Find Claude Code on PATH or in common macOS install locations."""
+    candidate = (configured or os.getenv("CLAUDE_CLI_PATH", "claude")).strip() or "claude"
+    found = shutil.which(candidate)
+    if found:
+        return str(Path(found).expanduser().resolve())
+    explicit = Path(candidate).expanduser()
+    if explicit.is_file() and os.access(explicit, os.X_OK):
+        return str(explicit.resolve())
+    home = Path.home()
+    candidates = [home / ".local/bin/claude", home / ".claude/local/claude",
+                  home / ".npm-global/bin/claude", Path("/opt/homebrew/bin/claude"),
+                  Path("/usr/local/bin/claude")]
+    nvm = home / ".nvm/versions/node"
+    if nvm.is_dir():
+        candidates.extend(nvm.glob("*/bin/claude"))
+    for path in candidates:
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path.resolve())
+    return None
 
 
 def load_settings() -> Settings:

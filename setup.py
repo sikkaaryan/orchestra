@@ -34,6 +34,31 @@ def executable(name: str) -> str | None:
     return shutil.which(name)
 
 
+def detect_claude() -> str | None:
+    configured = os.environ.get("CLAUDE_CLI_PATH", "").strip()
+    if configured:
+        candidate = Path(configured).expanduser()
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate.resolve())
+        found = shutil.which(configured)
+        if found:
+            return str(Path(found).resolve())
+    found = shutil.which("claude")
+    if found:
+        return str(Path(found).resolve())
+    home = Path.home()
+    candidates = [home / ".local/bin/claude", home / ".claude/local/claude",
+                  home / ".npm-global/bin/claude", Path("/opt/homebrew/bin/claude"),
+                  Path("/usr/local/bin/claude")]
+    nvm = home / ".nvm/versions/node"
+    if nvm.is_dir():
+        candidates.extend(nvm.glob("*/bin/claude"))
+    for path in candidates:
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path.resolve())
+    return None
+
+
 def check_prerequisites() -> None:
     if sys.version_info < (3, 10):
         raise SystemExit("ORCHESTRA requires Python 3.10 or newer.")
@@ -66,6 +91,9 @@ def launch() -> None:
     python = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     env = os.environ.copy()
     env["ORCHESTRA_ENV_FILE"] = str(ENV_FILE)
+    claude = detect_claude()
+    if claude:
+        env["CLAUDE_CLI_PATH"] = claude
     backend = subprocess.Popen(
         [str(python), "-m", "uvicorn", "orchestra_api.main:app", "--host", "127.0.0.1",
          "--port", env.get("ORCHESTRA_API_PORT", "8787"), "--reload"],
